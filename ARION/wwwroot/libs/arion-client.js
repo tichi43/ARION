@@ -53,7 +53,9 @@ function initializeDataCollection() {
         if (!isPageVisible && globalTimer) {
             clearInterval(globalTimer);
             globalTimer = null;
+            console.log("Page hidden, stopping data collection.");
         } else if (isPageVisible && !globalTimer) {
+            console.log("Page visible, resuming data collection.");
             startDataCollection();
         }
     });
@@ -93,6 +95,7 @@ window.addEventListener('load', function () {
         })
         .catch(error => {
             console.error('Error fetching initial data:', error);
+            throw new Error("Something went badly wrong!");
         });
 
     //Create heatmap container and style it
