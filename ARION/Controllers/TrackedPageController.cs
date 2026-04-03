@@ -21,7 +21,7 @@ public class TrackedPageController : ControllerBase
     public async Task<IActionResult> PostTrackedPageData([FromBody] List<TrackedPageDto> trackedPageDtos)
     {
         if (!Request.Headers.TryGetValue("x-apim-key", out var value) || value != "hmrvck9jz2dkumniihutva19njcman728ny5o49z7vxfnh0ywt")
-        { return Unauthorized(); }
+        { /*return Unauthorized();*/ }
 
         if (trackedPageDtos == null)
         {
@@ -97,7 +97,7 @@ public class TrackedPageController : ControllerBase
     public async Task<ActionResult<IEnumerable<TrackedPage>>> GetTrackedPages([FromQuery] string? queryPageUrl)
     {
         if (!Request.Headers.TryGetValue("x-apim-key", out var value) || value != "hmrvck9jz2dkumniihutva19njcman728ny5o49z7vxfnh0ywt")
-        { return Unauthorized(); }
+        { /*return Unauthorized();*/ }
 
         IQueryable<TrackedPage> query = _context.TrackedPages;
 
