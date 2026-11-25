@@ -1,6 +1,8 @@
 using ARION.Components;
 using ARION.Components.Account;
 using ARION.Models;
+using Azure.Communication.Email;
+using Azure.Core;
 using Azure.Identity;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -32,8 +34,8 @@ builder.Services.AddCors(options =>
 });
 
 // get AAD token and attach to a SqlConnection, then register DbContext with that connection
-var token = new DefaultAzureCredential().GetToken(new Azure.Core.TokenRequestContext(new[] { "https://database.windows.net/.default" }));
-var sqlConn = new SqlConnection(builder.Configuration.GetConnectionString("AzureProd")) { AccessToken = token.Token };
+AccessToken token = new DefaultAzureCredential().GetToken(new Azure.Core.TokenRequestContext(new[] { "https://database.windows.net/.default" }));
+SqlConnection sqlConn = new SqlConnection(builder.Configuration.GetConnectionString("AzureProdSQL")) { AccessToken = token.Token };
 
 builder.Services.AddDbContext<MyDbContext>(options =>
         options.UseSqlServer(sqlConn,
@@ -43,6 +45,8 @@ builder.Services.AddDbContext<MyDbContext>(options =>
                 errorNumbersToAdd: null
             )
 ));
+
+//only for development
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddQuickGridEntityFrameworkAdapter();
@@ -52,7 +56,7 @@ builder.Services.AddBlazorBootstrap();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.OpenApiInfo
     {
         Title = "ARION API",
         Version = "v1",
@@ -65,7 +69,30 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddScoped<IdentityUserAccessor>();
 builder.Services.AddScoped<IdentityRedirectManager>();
 builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuthenticationStateProvider>();
-builder.Services.AddSingleton<IEmailSender<IdentityUser>, IdentityNoOpEmailSender>();
+
+// choose credential: DefaultAzureCredential or ManagedIdentityCredential for user-assigned
+TokenCredential cred = new DefaultAzureCredential();
+// If you use a user-assigned identity:
+// TokenCredential cred = new ManagedIdentityCredential(clientId: builder.Configuration["ManagedIdentity:ClientId"]);
+
+// sanity check: request ACS scope token at startup to fail fast if not available
+try
+{
+    var tokenRequestContext = new TokenRequestContext(new[] { "https://communication.azure.com/.default" });
+    AccessToken testToken = await cred.GetTokenAsync(tokenRequestContext, CancellationToken.None);
+    // Optionally log expiry in development:
+    Console.WriteLine($"ACS token acquired, expires {testToken.ExpiresOn:u}");
+}
+catch (Exception ex)
+{
+    // Helpful failure message instead of obscure 401 later
+    throw new InvalidOperationException("Failed to acquire AAD token for Azure Communication Services. Ensure Managed Identity is enabled and has a role on the Communication resource. See https://learn.microsoft.com/azure/communication-services/ for details.", ex);
+}
+
+// register EmailClient using the credential that was validated
+builder.Services.AddSingleton(_ => new EmailClient(new Uri(builder.Configuration["Email:Endpoint"]!), cred));
+
+builder.Services.AddSingleton<IEmailSender<IdentityUser>, AzureEmailSender>();
 
 // Authentication
 builder.Services.AddAuthentication(options =>
